@@ -1,13 +1,13 @@
-// todo: Do or/and/not/xor have to work with 16-bit inputs? It doesn't even work like that right?
-//		 Subtract, Multiply, Divide
+//to-do: Subtract, Multiply, Divide
+//		 Figure out if unsigned support is required
 
 /**************************************************************
 			MODULES
 **************************************************************/
 
-//////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 //			Helper Modules - DO NOT USE
-//////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 
 //	Helper for the add module
 module Add_half (input a, b, output c, s);
@@ -23,33 +23,66 @@ module Add_full (input a, b, c_in, output c_out, s);
 	or (c_out, w1, w3);
 endmodule
 
-//////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 //			 Substantial Modules
-//////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+
+/************ Logic Operations ***************************/
 
 // OR two wires
-module OR (input a, b, output c);
-	or (c, a, b);
+module OR (input [15:0] a, b, output [15:0] c);
+
+	genvar i;
+	
+	generate for (i = 0; i < 16; i = i + 1)
+		begin
+			or (c[i], a[i], b[i]);
+		end
+	endgenerate
+	
 endmodule
 
 // AND two wires
-module AND (input a, b, output c);
-	and (c, a, b);
+module AND (input [15:0] a, b, output [15:0] c);
+
+	genvar i;
+	
+	generate for (i = 0; i < 16; i = i + 1)
+		begin
+			and (c[i], a[i], b[i]);
+		end
+	endgenerate
+	
 endmodule
 
 // Negate a wire
-module NOT (input a, output b);
-	not (b, a);
+module NOT (input [15:0] a, output [15:0] b);
+
+	genvar i;
+	
+	generate for (i = 0; i < 16; i = i + 1)
+		begin
+			not (b[i], a[i]);
+		end
+	endgenerate
+	
 endmodule
 
 // XOR two wires
-module XOR (input a, b, output c);
-	xor (c, a, b);
+module XOR (input [15:0] a, b, output [15:0] c);
+
+	genvar i;
+	
+	generate for (i = 0; i < 16; i = i + 1)
+		begin
+			xor (c[i], a[i], b[i]);
+		end
+	endgenerate
+	
 endmodule
 
-// Add together two 16-bit numbers
-// Input: 16-bit a, b
-// Output: 16-bit s
+/************ Arithmetic Operations **********************/
+
 module Add_16 (input [15:0] a, b, output [15:0] s);
 	
 	wire [15:0] carry;	//Stores intermediate carries
@@ -65,6 +98,16 @@ module Add_16 (input [15:0] a, b, output [15:0] s);
 	
 endmodule
 
+// **NOTE**: a must be less than b!
+module Subtract_16 (input [15:0] a, b, output [15:0] s);
+	
+	wire [15:0] neg_b, inter_s;
+	NOT n(b, neg_b);
+	
+	Add_16 A16(a, neg_b, inter_s);
+	Add_16 A162(inter_s, 16'd1, s);
+	
+endmodule
 
 /**************************************************************
 			MAIN
@@ -73,31 +116,37 @@ endmodule
 module testbench();
 
 	//Currently this code is for testing. a, b, and s are for addition and the rest are for the logical operations. 
-	reg [15:0] a, b;
-	reg [2:0] x, y;
-	reg neg;
-	wire [15:0] s;
-	wire [3:0] z;
-	Add_16 add(a, b, s);
-	OR disj(x[0], y[0], z[0]);
-	AND conj(x[1], y[1], z[1]);
-	NOT negate(neg, z[2]);
-	XOR notsame(x[2], y[2], z[3]);
+	reg [15:0] a, b, c, x, y;			//a and b are for testing addition and c is for testing NOT. x and y are for AND, OR, and XOR.
+	wire [15:0] s_add, s_sub, c_neg;	//s wires hold the output for arithmetic operations and c_neg negation.
+	wire [2:0] [15:0] z;				//z holds the outputs for OR, AND, and XOR.
+	OR disj(x, y, z[0]);
+	AND conj(x, y, z[1]);
+	NOT negate(c, c_neg);
+	XOR notsame(x, y, z[2]);
+	Add_16 add(a, b, s_add);
+	Subtract_16 sub(a, b, s_sub);
 	
 	initial begin
-	a = 16'd756;
-	b = 16'd3080;
-	x = 3'b000;
-	y = 3'b111;
-	neg = 0;
+	a = 16'd3080;
+	b = 16'd756;
+	x = 16'd9568;
+	y = 16'd29408;
+	c = 16'd15894;
 	#5;
 	$display("\nDEMONSTRATION:\n");
-	$display("0 OR 1: %d", z[0]);
-	$display("0 AND 1: %d", z[1]);
-	$display("NOT 0: %d", z[2]);
-	$display("0 XOR 1: ", z[3]);
-	$display("756 + 3080: %5d", s);
+	$display("\nOR:");
+	$display("%16b\n%16b\n________________\n%16b", x, y, z[0]);
+	$display("\nAND:");
+	$display("%16b\n%16b\n________________\n%16b", x, y, z[1]);
+	$display("\nNOT:");
+	$display("%16b\n________________\n%16b", c, c_neg);
+	$display("\nXOR:");
+	$display("%16b\n%16b\n________________\n%16b", x, y, z[2]);
 	
+	$display("\nADD:");
+	$display("%4d\n%4d\n____\n%4d", a, b, s_add);
+	$display("\nSUBTRACT:");
+	$display("%4d\n%4d\n____\n%4d", a, b, s_sub);
 	$finish;	
 	end
 	
