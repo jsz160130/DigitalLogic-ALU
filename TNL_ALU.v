@@ -80,6 +80,23 @@ module XOR (input [15:0] a, b, output [15:0] c);
 	
 endmodule
 
+//Shift Left Logical
+module ShiftLeft (input[15:0] a, output[15:0] b);
+
+	//Multiplication requires 32 bits so we use an intermediate variable then truncate.
+	wire [31:0] raw_shifted;
+	Multiply_16 shift(a, 16'b0000000000000010, raw_shifted);
+	assign b = raw_shifted[15:0];
+
+endmodule
+
+//Shift Right Logical
+module ShiftRight (input[15:0] a, output[15:0] b);
+
+	Divide_16 shift(a, 16'b0000000000000010, b);
+	
+endmodule
+
 /************ Arithmetic Operations **********************/
 
 module Add_16 (input [15:0] a, b, output [15:0] s);
@@ -110,7 +127,8 @@ endmodule
 
 module Multiply_16 (input [15:0] a, b, output [31:0] p);
 
-	always @ begin (a, b, p);
+	reg [31:0] p;
+	always @(a, b, p) begin ;
 		p = a*b;
 	end
 	
@@ -119,7 +137,8 @@ endmodule
 //Divide a by b. b cannot be 0. 
 module Divide_16 (input [15:0] a, b, output [15:0] q);
 
-	always @ begin (a, b, q);
+	reg [15:0] q;
+	always @(a, b, q) begin;
 		q = a / b;
 	end
 
@@ -132,13 +151,16 @@ endmodule
 module testbench();
 
 	//Currently this code is for testing. a, b, and s are for arithmetic and the rest are for the logical operations. 
-	reg [15:0] a, b, c, x, y;						//a and b are for testing arithmetic and c is for testing NOT. x and y are for AND, OR, and XOR.
-	wire [15:0] s_add, s_sub, s_mult, s_div, c_neg;	//s wires hold the output for arithmetic operations and c_neg negation.
-	wire [2:0] [15:0] z;							//z holds the outputs for OR, AND, and XOR.
+	reg [15:0] a, b, c, x, y;					//a and b are for testing arithmetic and c is for testing NOT. x and y are for AND, OR, and XOR.
+	wire [15:0] s_add, s_sub, s_div, c_neg;		//s wires hold the output for arithmetic operations and c_neg negation.
+	wire [31:0] s_mult;
+	wire [4:0] [15:0] z;						//z holds the outputs for OR, AND, XOR, and the shift logicals.
 	OR disj(x, y, z[0]);
 	AND conj(x, y, z[1]);
 	NOT negate(c, c_neg);
 	XOR notsame(x, y, z[2]);
+	ShiftLeft sll(x, z[3]);
+	ShiftRight srl(x, z[4]);
 	Add_16 add(a, b, s_add);
 	Subtract_16 sub(a, b, s_sub);
 	Multiply_16 mult(a, b, s_mult);
@@ -160,15 +182,19 @@ module testbench();
 	$display("%16b\n________________\n%16b", c, c_neg);
 	$display("\nXOR:");
 	$display("%16b\n%16b\n________________\n%16b", x, y, z[2]);
+	$display("\nSHIFT LEFT:");
+	$display("%16b\n________________\n%16b", x, z[3]);
+	$display("\nSHIFT RIGHT:");
+	$display("%16b\n________________\n%16b", x, z[4]);
 	
 	$display("\nADD:");
 	$display("%4d\n%4d\n____\n%4d", a, b, s_add);
 	$display("\nSUBTRACT:");
 	$display("%4d\n%4d\n____\n%4d", a, b, s_sub);
 	$display("\nMULTIPLY:");
-	$display("%4d\n%4d\n____\n%7d", a, b, s_div);
+	$display("   %4d\n   %4d\n_______\n%7d", a, b, s_mult);
 	$display("\nDIVIDE:");
-	$display("%4d\n%4d\n____\n%4d", a, b, s_mult);
+	$display("%4d\n%4d\n____\n%4d", a, b, s_div);
 	$finish;	
 	end
 	
