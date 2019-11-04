@@ -128,7 +128,7 @@ endmodule
 module Multiply_16 (input [15:0] a, b, output [31:0] p);
 
 	reg [31:0] p;
-	always @(a, b, p) begin ;
+	always @(a, b, p) begin;
 		p = a*b;
 	end
 	
@@ -144,6 +144,46 @@ module Divide_16 (input [15:0] a, b, output [15:0] q);
 
 endmodule
 
+//Returns the factorial of a in 32 bit output. The input must be a positive whole number no greater than 12.
+module Fact_16 (input [15:0] a, output [31:0] o);
+
+	reg [15:0] i;
+	reg [31:0] o;	//Start with the output equal to 1.
+	
+	always @* begin
+			
+		o = 32'd1;
+		for (i = a; i != 1; i = i - 1)
+			o = o * i;	
+		
+	end
+
+endmodule
+
+
+//Returns e raised to the input. Whole numbers only. Output is 32-bit, so the maximum input is 22.
+//Obviously there will be some error since we are using a power series approximation and there are
+// no floating points.
+module Exp_16 (input [15:0] a, output [31:0] o);
+
+	reg [15:0] i;
+	reg [31:0] o;
+	reg [255:0] out, factorial;
+	
+	always @* begin
+		
+		out = 255'd1;
+		factorial = 255'd1;
+		for (i = 1; i < ((a ** 2)/2); i = i + 1)
+		begin
+			factorial = factorial*i;		//Unfortunately our Fact_16 module cannot be used here. 
+			out = out + ((a ** i)/factorial);
+		end
+		assign o = out;
+	end
+	
+endmodule
+
 /**************************************************************
 			MAIN
 **************************************************************/
@@ -151,9 +191,9 @@ endmodule
 module testbench();
 
 	//Currently this code is for testing. a, b, and s are for arithmetic and the rest are for the logical operations. 
-	reg [15:0] a, b, c, x, y;					//a and b are for testing arithmetic and c is for testing NOT. x and y are for AND, OR, and XOR.
+	reg [15:0] a, b, c, x, y, f, e;					//a and b are for testing arithmetic and c is for testing NOT. x and y are for AND, OR, and XOR. f and e are for factorial/exponentiation.
 	wire [15:0] s_add, s_sub, s_div, c_neg;		//s wires hold the output for arithmetic operations and c_neg negation.
-	wire [31:0] s_mult;
+	wire [31:0] s_mult, s_fact, s_exp;
 	wire [4:0] [15:0] z;						//z holds the outputs for OR, AND, XOR, and the shift logicals.
 	OR disj(x, y, z[0]);
 	AND conj(x, y, z[1]);
@@ -165,6 +205,8 @@ module testbench();
 	Subtract_16 sub(a, b, s_sub);
 	Multiply_16 mult(a, b, s_mult);
 	Divide_16 div(a, b, s_div);
+	Fact_16 fact(f, s_fact);
+	Exp_16 exp(e, s_exp);
 	
 	initial begin
 	a = 16'd3080;
@@ -172,7 +214,9 @@ module testbench();
 	x = 16'd9568;
 	y = 16'd29408;
 	c = 16'd15894;
-	#5;
+	f = 16'd12;
+	e = 16'd22;
+	#50;
 	$display("\nDEMONSTRATION:\n");
 	$display("\nOR:");
 	$display("%16b\n%16b\n________________\n%16b", x, y, z[0]);
@@ -195,6 +239,10 @@ module testbench();
 	$display("   %4d\n   %4d\n_______\n%7d", a, b, s_mult);
 	$display("\nDIVIDE:");
 	$display("%4d\n%4d\n____\n%4d", a, b, s_div);
+	$display("\nFACTORIAL:");
+	$display("%2d! = %5d", f, s_fact);
+	$display("\nEXPONENTIATION:");
+	$display("e^%2d ~= %5d", e, s_exp);
 	$finish;	
 	end
 	
