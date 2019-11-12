@@ -160,7 +160,6 @@ module Fact_16 (input [15:0] a, output [31:0] o);
 
 endmodule
 
-
 //Returns e raised to the input. Whole numbers only. Output is 32-bit, so the maximum input is 22.
 //Obviously there will be some error since we are using a power series approximation and there are
 // no floating points.
@@ -184,6 +183,72 @@ module Exp_16 (input [15:0] a, output [31:0] o);
 	
 endmodule
 
+
+module Arithmetic(a,b,l_in,L_result);
+
+	wire [15:0] SUM1, [15:0] SUB1], [15:0] MULT1, [15:0] DIV1;
+	wire [15:0] A_result
+		
+	Add_16 add(a,b,C_in1,C_out1,SUM1);
+	Subtract_16 sub((a,b,C_in1,C_out1,SUB1);
+	Multiply_16 mult((a,b,C_in1,C_out1,MULT1);
+	Divide_16 div((a,b,C_in1,C_out1,DIV1);
+
+	// ...
+
+endmodule
+
+module Logic(a,b,l_in,L_result);
+
+	wire [15:0] L_result
+
+	always @(*) begin
+		//detection of operation code
+		case(sel)
+			//and
+			2'b00 : out = a & b;
+			//or
+			2'b01 : out = a | b;
+			//xor
+			2'b10 : out = a ^ b;
+			//not
+			2'b11 : out = ~a;
+		endcase
+	end
+	
+endmodule
+
+module Shifter(a,b,l_in,L_result);
+
+	wire [15:0] S_result
+
+	always @(*) begin
+		//detection of operation code
+		case(sel)
+			//and
+			1'b0 : out = a<<1;
+			//or
+			1'b1 : out = a>>1;
+		endcase
+	end
+	
+endmodule
+
+//ALU module inputs: 2 8-bit variables, and 3-bit opcode and reset but. output:8-bit result, 1-bit reset/error
+module SixteenBit_ALU(input clk,reset, input [15:0] a,b, input [2:0] sel, output reg [15:0] out, output reg rst);
+	
+	wire C_in1 = sel[0];
+  	wire  S_in = sel[0];
+  	wire [1:0]l_in = sel[1:0];
+    wire C_out1;
+
+	Arithmetic(a, b, C_int1, C_out1);
+	Logic(a, b, C_int1, C_out1);
+	Shifter(a, b, C_int1, C_out1);
+	
+endmodule
+
+
 /**************************************************************
 			MAIN
 **************************************************************/
@@ -192,58 +257,69 @@ module testbench();
 
 	//Currently this code is for testing. a, b, and s are for arithmetic and the rest are for the logical operations. 
 	reg [15:0] a, b, c, x, y, f, e;					//a and b are for testing arithmetic and c is for testing NOT. x and y are for AND, OR, and XOR. f and e are for factorial/exponentiation.
-	wire [15:0] s_add, s_sub, s_div, c_neg;		//s wires hold the output for arithmetic operations and c_neg negation.
-	wire [31:0] s_mult, s_fact, s_exp;
-	wire [4:0] [15:0] z;						//z holds the outputs for OR, AND, XOR, and the shift logicals.
-	OR disj(x, y, z[0]);
-	AND conj(x, y, z[1]);
-	NOT negate(c, c_neg);
-	XOR notsame(x, y, z[2]);
-	ShiftLeft sll(x, z[3]);
-	ShiftRight srl(x, z[4]);
-	Add_16 add(a, b, s_add);
-	Subtract_16 sub(a, b, s_sub);
-	Multiply_16 mult(a, b, s_mult);
-	Divide_16 div(a, b, s_div);
-	Fact_16 fact(f, s_fact);
-	Exp_16 exp(e, s_exp);
+	reg r;
+	reg [2:0] s;
 	
-	initial begin
-	a = 16'd3080;
-	b = 16'd756;
-	x = 16'd9568;
-	y = 16'd29408;
-	c = 16'd15894;
-	f = 16'd12;
-	e = 16'd22;
-	#50;
-	$display("\nDEMONSTRATION:\n");
-	$display("\nOR:");
-	$display("%16b\n%16b\n________________\n%16b", x, y, z[0]);
-	$display("\nAND:");
-	$display("%16b\n%16b\n________________\n%16b", x, y, z[1]);
-	$display("\nNOT:");
-	$display("%16b\n________________\n%16b", c, c_neg);
-	$display("\nXOR:");
-	$display("%16b\n%16b\n________________\n%16b", x, y, z[2]);
-	$display("\nSHIFT LEFT:");
-	$display("%16b\n________________\n%16b", x, z[3]);
-	$display("\nSHIFT RIGHT:");
-	$display("%16b\n________________\n%16b", x, z[4]);
+// 	wire [15:0] s_add, s_sub, s_div, c_neg;		//s wires hold the output for arithmetic operations and c_neg negation.
+// 	wire [31:0] s_mult, s_fact, s_exp;
+// 	wire [4:0] [15:0] z;						//z holds the outputs for OR, AND, XOR, and the shift logicals.
+// 	OR disj(x, y, z[0]);
+// 	AND conj(x, y, z[1]);
+// 	NOT negate(c, c_neg);
+// 	XOR notgsame(x, y, z[2]);
+// 	ShiftLeft sll(x, z[3]);
+// 	ShiftRight srl(x, z[4]);
+// 	Add_16 add(a, b, s_add);
+// 	Subtract_16 sub(a, b, s_sub);
+// 	Multiply_16 mult(a, b, s_mult);
+// 	Divide_16 div(a, b, s_div);
+// 	Fact_16 fact(f, s_fact);
+// 	Exp_16 exp(e, s_exp);
 	
-	$display("\nADD:");
-	$display("%4d\n%4d\n____\n%4d", a, b, s_add);
-	$display("\nSUBTRACT:");
-	$display("%4d\n%4d\n____\n%4d", a, b, s_sub);
-	$display("\nMULTIPLY:");
-	$display("   %4d\n   %4d\n_______\n%7d", a, b, s_mult);
-	$display("\nDIVIDE:");
-	$display("%4d\n%4d\n____\n%4d", a, b, s_div);
-	$display("\nFACTORIAL:");
-	$display("%2d! = %5d", f, s_fact);
-	$display("\nEXPONENTIATION:");
-	$display("e^%2d ~= %5d", e, s_exp);
-	$finish;	
-	end
+	wire carry, ovf;
+  	wire [15:0] out, prevR;
+  	wire clock, prevReset;
+  	wire reset;
+	Clock c0(clock);
+
+	SixteenBit_ALU ALU(clock,r,a,b,s,out,reset);
+	
+// 	initial begin
+// 	a = 16'd3080;
+// 	b = 16'd756;
+// 	x = 16'd9568;
+// 	y = 16'd29408;
+// 	c = 16'd15894;
+// 	f = 16'd12;
+// 	e = 16'd22;
+// 	#50;
+// 	$display("\nDEMONSTRATION:\n");
+// 	$display("\nOR:");
+// 	$display("%16b\n%16b\n________________\n%16b", x, y, z[0]);
+// 	$display("\nAND:");
+// 	$display("%16b\n%16b\n________________\n%16b", x, y, z[1]);
+// 	$display("\nNOT:");
+// 	$display("%16b\n________________\n%16b", c, c_neg);
+// 	$display("\nXOR:");
+// 	$display("%16b\n%16b\n________________\n%16b", x, y, z[2]);
+// 	$display("\nSHIFT LEFT:");
+// 	$display("%16b\n________________\n%16b", x, z[3]);
+// 	$display("\nSHIFT RIGHT:");
+// 	$display("%16b\n________________\n%16b", x, z[4]);
+// 	
+// 	$display("\nADD:");
+// 	$display("%4d\n%4d\n____\n%4d", a, b, s_add);
+// 	$display("\nSUBTRACT:");
+// 	$display("%4d\n%4d\n____\n%4d", a, b, s_sub);
+// 	$display("\nMULTIPLY:");
+// 	$display("   %4d\n   %4d\n_______\n%7d", a, b, s_mult);
+// 	$display("\nDIVIDE:");
+// 	$display("%4d\n%4d\n____\n%4d", a, b, s_div);
+// 	$display("\nFACTORIAL:");
+// 	$display("%2d! = %5d", f, s_fact);
+// 	$display("\nEXPONENTIATION:");
+// 	$display("e^%2d ~= %5d", e, s_exp);
+// 	$finish;	
+// 	end
 	
 endmodule
