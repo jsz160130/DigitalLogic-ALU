@@ -1,5 +1,3 @@
-//to-do: Implement divide by 0 error
-
 /**************************************************************
 			MODULES
 **************************************************************/
@@ -93,13 +91,15 @@ endmodule
 //Shift Right Logical
 module ShiftRight (input[15:0] a, output[15:0] b);
 
-	Divide_16 shift(a, 16'b0000000000000010, b);
+	wire err_placeholder;
+	Divide_16 shift(a, 16'b0000000000000010, err_placeholder, b);
 	
 endmodule
 
 /************ Arithmetic Operations **********************/
 
-module Add_16 (input [15:0] a, b, output [15:0] s);
+//Add a and b. Error bit is set to 1 if there is overflow.
+module Add_16 (input [15:0] a, b, output err, output [15:0] s);
 	
 	wire [15:0] carry;	//Stores intermediate carries
 	genvar i;			//Loop variable
@@ -112,16 +112,28 @@ module Add_16 (input [15:0] a, b, output [15:0] s);
 		end
 	endgenerate
 	
+	assign err = carry[15] & 1'b1;
+	
 endmodule
 
-// **NOTE**: a must be less than b!
-module Subtract_16 (input [15:0] a, b, output [15:0] s);
+//Subtract a and b. Error bit is set to 1 if the result is negative (i.e. a < b)
+module Subtract_16 (input [15:0] a, b, output err, output [15:0] s);
+	
+	reg err;
+	always @(*) begin
+		err = 1'b0;
+		if (a < b)
+			begin
+				err = 1'b1;
+			end
+	end
 	
 	wire [15:0] neg_b, inter_s;
+	wire err_placeholder;
 	NOT n(b, neg_b);
 	
-	Add_16 A16(a, neg_b, inter_s);
-	Add_16 A162(inter_s, 16'd1, s);
+	Add_16 A16(a, neg_b, err_placeholder, inter_s);
+	Add_16 A162(inter_s, 16'd1, err_placeholder, s);
 	
 endmodule
 
@@ -134,28 +146,49 @@ module Multiply_16 (input [15:0] a, b, output [31:0] p);
 	
 endmodule
 
-//Divide a by b. b cannot be 0. 
-module Divide_16 (input [15:0] a, b, output [15:0] q);
+//Divide a by b. b cannot be 0. Error is 1 if b is 0.
+module Divide_16 (input [15:0] a, b, output err, output [15:0] q);
 
+	
 	reg [15:0] q;
+	reg [4:0] i;
+	reg err;
+	reg b_placeholder; //have to store current b bit because we have to invert it
+	
 	always @(a, b, q) begin;
 		q = a / b;
+		err = 1'b1;
+		
+		//Check if b is all 0's - start err at 1 (assume all 0's) then set to 0 if any bit is 1 (i.e. one of them is non-zero)
+		for (i = 0; i < 15; i = i + 1)
+		begin
+			b_placeholder = b[i];
+			b_placeholder = !b_placeholder;
+			err = b_placeholder & err;	//ANDing err with b[i]' will result in err being 0 if it's a 1 and 1 otherwise
+		end
+		
 	end
 
 endmodule
 
-//Returns the factorial of a in 32 bit output. The input must be a positive whole number no greater than 12.
-module Fact_16 (input [15:0] a, output [31:0] o);
+//Returns the factorial of a in 32 bit output. The input must be a positive whole number no greater than 12. Error is set to 1 if it is greater than 12.
+module Fact_16 (input [15:0] a, output err, output [31:0] o);
 
+	reg err;
 	reg [15:0] i;
 	reg [31:0] o;	//Start with the output equal to 1.
 	
 	always @* begin
-			
+		err = 1'b0;
+		
 		o = 32'd1;
 		for (i = a; i != 1; i = i - 1)
 			o = o * i;	
 		
+		if (a > 12)
+		begin
+			err = 1'b1;
+		end
 	end
 
 endmodule
@@ -163,15 +196,17 @@ endmodule
 
 //Returns e raised to the input. Whole numbers only. Output is 32-bit, so the maximum input is 22.
 //Obviously there will be some error since we are using a power series approximation and there are
-// no floating points.
-module Exp_16 (input [15:0] a, output [31:0] o);
+// no floating points. Err is set to 1 if input is greater than 22.
+module Exp_16 (input [15:0] a, output err, output [31:0] o);
 
+	reg err;
 	reg [15:0] i;
 	reg [31:0] o;
 	reg [255:0] out, factorial;
 	
 	always @* begin
 		
+		err = 1'b0;
 		out = 255'd1;
 		factorial = 255'd1;
 		for (i = 1; i < ((a ** 2)/2); i = i + 1)
@@ -180,6 +215,11 @@ module Exp_16 (input [15:0] a, output [31:0] o);
 			out = out + ((a ** i)/factorial);
 		end
 		assign o = out;
+		
+		if (a > 22) 
+		begin
+			err = 1'b1;
+		end
 	end
 	
 endmodule
@@ -195,27 +235,28 @@ module testbench();
 	wire [15:0] s_add, s_sub, s_div, c_neg;		//s wires hold the output for arithmetic operations and c_neg negation.
 	wire [31:0] s_mult, s_fact, s_exp;
 	wire [4:0] [15:0] z;						//z holds the outputs for OR, AND, XOR, and the shift logicals.
+	wire err_add, err_sub, err_div, err_fact, err_e;
 	OR disj(x, y, z[0]);
 	AND conj(x, y, z[1]);
 	NOT negate(c, c_neg);
 	XOR notsame(x, y, z[2]);
 	ShiftLeft sll(x, z[3]);
 	ShiftRight srl(x, z[4]);
-	Add_16 add(a, b, s_add);
-	Subtract_16 sub(a, b, s_sub);
+	Add_16 add(a, b, err_add, s_add);
+	Subtract_16 sub(b, a, err_sub, s_sub);
 	Multiply_16 mult(a, b, s_mult);
-	Divide_16 div(a, b, s_div);
-	Fact_16 fact(f, s_fact);
-	Exp_16 exp(e, s_exp);
+	Divide_16 div(a, b, err_div, s_div);
+	Fact_16 fact(f, err_fact, s_fact);
+	Exp_16 exp(e, err_e, s_exp);
 	
 	initial begin
-	a = 16'd3080;
-	b = 16'd756;
+	a = 16'd32768;
+	b = 16'd0;
 	x = 16'd9568;
 	y = 16'd29408;
 	c = 16'd15894;
-	f = 16'd12;
-	e = 16'd22;
+	f = 16'd13;
+	e = 16'd23;
 	#50;
 	$display("\nDEMONSTRATION:\n");
 	$display("\nOR:");
@@ -231,17 +272,17 @@ module testbench();
 	$display("\nSHIFT RIGHT:");
 	$display("%16b\n________________\n%16b", x, z[4]);
 	
-	$display("\nADD:");
+	$display("\nADD (error: %1b):", err_add);
 	$display("%4d\n%4d\n____\n%4d", a, b, s_add);
-	$display("\nSUBTRACT:");
+	$display("\nSUBTRACT(error: %1b):", err_sub);
 	$display("%4d\n%4d\n____\n%4d", a, b, s_sub);
 	$display("\nMULTIPLY:");
 	$display("   %4d\n   %4d\n_______\n%7d", a, b, s_mult);
-	$display("\nDIVIDE:");
+	$display("\nDIVIDE(error: %1b):", err_div);
 	$display("%4d\n%4d\n____\n%4d", a, b, s_div);
-	$display("\nFACTORIAL:");
+	$display("\nFACTORIAL(error: %1b):", err_fact);
 	$display("%2d! = %5d", f, s_fact);
-	$display("\nEXPONENTIATION:");
+	$display("\nEXPONENTIATION(error: %1b):", err_e);
 	$display("e^%2d ~= %5d", e, s_exp);
 	$finish;	
 	end
