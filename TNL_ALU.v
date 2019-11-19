@@ -27,7 +27,7 @@ endmodule
 /************ Logic Operations ***************************/
 
 // OR two wires
-module OR (input [15:0] a, b, output [15:0] c);
+module Or_16 (input [15:0] a, b, output [15:0] c);
 
 	genvar i;
 	
@@ -40,7 +40,7 @@ module OR (input [15:0] a, b, output [15:0] c);
 endmodule
 
 // AND two wires
-module AND (input [15:0] a, b, output [15:0] c);
+module And_16 (input [15:0] a, b, output [15:0] c);
 
 	genvar i;
 	
@@ -53,7 +53,7 @@ module AND (input [15:0] a, b, output [15:0] c);
 endmodule
 
 // Negate a wire
-module NOT (input [15:0] a, output [15:0] b);
+module Not_16 (input [15:0] a, output [15:0] b);
 
 	genvar i;
 	
@@ -66,7 +66,7 @@ module NOT (input [15:0] a, output [15:0] b);
 endmodule
 
 // XOR two wires
-module XOR (input [15:0] a, b, output [15:0] c);
+module Xor_16 (input [15:0] a, b, output [15:0] c);
 
 	genvar i;
 	
@@ -222,69 +222,115 @@ module Exp_16 (input [15:0] a, output err, output [31:0] o);
 	
 endmodule
 
-
-module Arithmetic(a,b,l_in,L_result);
-
-	wire [15:0] SUM1, [15:0] SUB1], [15:0] MULT1, [15:0] DIV1;
-	wire [15:0] A_result
-		
-	Add_16 add(a,b,C_in1,C_out1,SUM1);
-	Subtract_16 sub(a,b,C_in1,C_out1,SUB1);
-	Multiply_16 mult(a,b,C_in1,C_out1,MULT1);
-	Divide_16 div(a,b,C_in1,C_out1,DIV1);
-
-	// ...
-
-endmodule
-
-module Logic(a,b,l_in,L_result);
-
-	wire [15:0] L_result
-
-	always @(*) begin
-		//detection of operation code
-		case(sel)
-			//and
-			2'b00 : out = a & b;
-			//or
-			2'b01 : out = a | b;
-			//xor
-			2'b10 : out = a ^ b;
-			//not
-			2'b11 : out = ~a;
-		endcase
+module DFF (input clock, input [15:0] in, output[15:0] out)
+	
+	always @posedge(clock)
+	begin
+		out = in;
 	end
 	
 endmodule
 
-module Shifter(a,b,l_in,L_result);
-
-	wire [15:0] S_result
-
-	always @(*) begin
-		//detection of operation code
-		case(sel)
-			//and
-			1'b0 : out = a<<1;
-			//or
-			1'b1 : out = a>>1;
-		endcase
+//This is a separate module because it has different bus widths
+module Accumulator (input clock, input [31:0] in, output[31:0] out)
+	
+	always @posedge(clock)
+	begin
+		out = in;
 	end
 	
 endmodule
+
 
 //ALU module inputs: 2 8-bit variables, and 3-bit opcode and reset but. output:8-bit result, 1-bit reset/error
-module SixteenBit_ALU(input clk,reset, input [15:0] a,b, input [2:0] sel, output reg [15:0] out, output reg rst);
-	
-	wire C_in1 = sel[0];
-  	wire  S_in = sel[0];
-  	wire [1:0]l_in = sel[1:0];
-    wire C_out1;
+module SixteenBit_ALU(input clk,reset, input [15:0] a,b,acc, input [2:0] sel, output reg [31:0] out, output reg rst);
 
-	Arithmetic(a, b, C_int1, C_out1);
-	Logic(a, b, C_int1, C_out1);
-	Shifter(a, b, C_int1, C_out1);
+	wire [15:0] SR, SL, SUM, SUB, DIV, AND, OR, NOT, XOR;
+	wire [31:0] MULT, EXP, FACT;
+	wire err;
 	
+	Not_16 n(a, NOT);
+	Or_16 o(a, b, OR);
+	And_16 andy(a, b, AND);
+	Xor_16 xory(a, b, XOR);
+	ShiftLeft sl(a, SL);
+	ShiftRight sr (a, SR);
+	Add_16 add(a,b,err,SUM);
+	Subtract_16 sub(a,b,err,SUB);
+	Multiply_16 mult(a,b,MULT);
+	Divide_16 div(a,b,err,DIV);
+	Fact_16 fact(a, err, FACT);
+	Exp_16 exp(a, err, EXP);
+	
+	/*
+	Not_16 n(acc, NOT);
+	Or_16 o(acc, b, OR);
+	And_16 andy(acc, b, AND);
+	Xor_16 xory(acc, b, XOR);
+	ShiftLeft sl(a, SL);
+	ShiftRight sr (a, SR);
+	Add_16 add(a,b,err,SUM);
+	Subtract_16 sub(a,b,err,SUB);
+	Multiply_16 mult(a,b,MULT);
+	Divide_16 div(a,b,err,DIV);
+	Fact_16 fact(a, err, FACT);
+	Exp_16 exp(a, err, EXP);*/
+	
+	
+	always @(*) begin
+		case(sel)
+			//clear
+			5'd0 : out = 16'b0000000000000000;
+			//not
+			5'd1 : out = NOT;
+			//>>
+			5'd2 : out = SR;
+			//<<
+			5'd3 : out = SL;
+			//!
+			5'd4 : out = FACT;
+			//e^x
+			5'd5 : out = EXP;
+			//+
+			5'd6 : out = SUM;
+			//-
+			5'd7 : out = SUB;
+			//x
+			5'd8 : out = MULT;
+			//divide
+			5'd9 : out = DIV;
+			//and
+			5'd10 : out = AND;
+			//or
+			5'd11 : out = OR;
+			//xor
+			5'd12 : out = XOR;
+			//Accumulator opcodes
+			//not
+			/*5'd13 : out = NOT;
+			//>>
+			5'd14 : out = SR;
+			//<<
+			5'd15 : out = SL;
+			//!
+			5'd16 : out = FACT;
+			//e^x
+			5'd17 : out = EXP;
+			//+
+			5'd18 : out = SUM;
+			//-
+			5'd19 : out = SUB;
+			//x
+			5'd20 : out = MULT;
+			//divide
+			5'd21 : out = DIV;
+			//and
+			5'd22 : out = AND;
+			//or
+			5'd23 : out = OR;
+			//xor
+			5'd24 : out = XOR;*/
+			
 endmodule
 
 /**************************************************************
@@ -294,9 +340,13 @@ endmodule
 module testbench();
 
 	//Currently this code is for testing. a, b, and s are for arithmetic and the rest are for the logical operations. 
-	reg [15:0] a, b, c, x, y, f, e;					//a and b are for testing arithmetic and c is for testing NOT. x and y are for AND, OR, and XOR. f and e are for factorial/exponentiation.
-	reg r;
-	reg [2:0] s;
+	reg [15:0] inA, inB, inAcc;
+	wire [15:0] outA, outB, outAcc;
+	reg reset;
+	reg [5:0] selector;
+	DFF a(clock, inA, outA);
+	DFF b(clock, inB, outB);
+	Accumulator acc(clock, inAcc, outAcc);
 	
 // 	wire [15:0] s_add, s_sub, s_div, c_neg;		//s wires hold the output for arithmetic operations and c_neg negation.
 // 	wire [31:0] s_mult, s_fact, s_exp;
@@ -314,13 +364,13 @@ module testbench();
 // 	Fact_16 fact(f, s_fact);
 // 	Exp_16 exp(e, s_exp);
 	
-	wire carry, ovf;
-  	wire [15:0] out, prevR;
-  	wire clock, prevReset;
+  	wire [15:0] out;
   	wire reset;
-	Clock c0(clock);
+	wire clock;
 
-	SixteenBit_ALU ALU(clock,r,a,b,s,out,reset);
+	SixteenBit_ALU ALU(clock,reset,a,b,acc,selector,out,reset);
+	//Set acc to output
+	
 	
 // 	initial begin
 // 	a = 16'd3080;
@@ -360,4 +410,23 @@ module testbench();
 // 	$finish;	
 // 	end
 
+	initial begin
+		forever begin
+			#5
+			clock = 1'b0;
+			#5
+			clock = 1'b1;
+		end
+	end		
+	
+	initial begin
+		inA = 16'b000000000000001;
+		inB = 16'b000000000000001;
+		inAcc = 16'b0000000000000000;
+		reset = 0;
+		selector = 5'd1;
+		#10
+		disp("Output: %16d", out);
+	end
+		
 endmodule
