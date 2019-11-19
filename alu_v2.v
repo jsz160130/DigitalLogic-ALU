@@ -1,5 +1,3 @@
-//to-do: Implement divide by 0 error
-
 /**************************************************************
 			MODULES
 **************************************************************/
@@ -29,7 +27,7 @@ endmodule
 /************ Logic Operations ***************************/
 
 // OR two wires
-module OR (input [15:0] a, b, output [15:0] c);
+module Or_16 (input [15:0] a, b, output [15:0] c);
 
 	genvar i;
 	
@@ -42,7 +40,7 @@ module OR (input [15:0] a, b, output [15:0] c);
 endmodule
 
 // AND two wires
-module AND (input [15:0] a, b, output [15:0] c);
+module And_16 (input [15:0] a, b, output [15:0] c);
 
 	genvar i;
 	
@@ -55,7 +53,7 @@ module AND (input [15:0] a, b, output [15:0] c);
 endmodule
 
 // Negate a wire
-module NOT (input [15:0] a, output [15:0] b);
+module Not_16 (input [15:0] a, output [15:0] b);
 
 	genvar i;
 	
@@ -68,7 +66,7 @@ module NOT (input [15:0] a, output [15:0] b);
 endmodule
 
 // XOR two wires
-module XOR (input [15:0] a, b, output [15:0] c);
+module Xor_16 (input [15:0] a, b, output [15:0] c);
 
 	genvar i;
 	
@@ -93,13 +91,15 @@ endmodule
 //Shift Right Logical
 module ShiftRight (input[15:0] a, output[15:0] b);
 
-	Divide_16 shift(a, 16'b0000000000000010, b);
+	wire err_placeholder;
+	Divide_16 shift(a, 16'b0000000000000010, err_placeholder, b);
 	
 endmodule
 
 /************ Arithmetic Operations **********************/
 
-module Add_16 (input [15:0] a, b, output [15:0] s);
+//Add a and b. Error bit is set to 1 if there is overflow.
+module Add_16 (input [15:0] a, b, output err, output [15:0] s);
 	
 	wire [15:0] carry;	//Stores intermediate carries
 	genvar i;			//Loop variable
@@ -112,16 +112,28 @@ module Add_16 (input [15:0] a, b, output [15:0] s);
 		end
 	endgenerate
 	
+	assign err = carry[15] & 1'b1;
+	
 endmodule
 
-// **NOTE**: a must be less than b!
-module Subtract_16 (input [15:0] a, b, output [15:0] s);
+//Subtract a and b. Error bit is set to 1 if the result is negative (i.e. a < b)
+module Subtract_16 (input [15:0] a, b, output err, output [15:0] s);
+	
+	reg err;
+	always @(*) begin
+		err = 1'b0;
+		if (a < b)
+			begin
+				err = 1'b1;
+			end
+	end
 	
 	wire [15:0] neg_b, inter_s;
-	NOT n(b, neg_b);
+	wire err_placeholder;
+	Not_16 n(b, neg_b);
 	
-	Add_16 A16(a, neg_b, inter_s);
-	Add_16 A162(inter_s, 16'd1, s);
+	Add_16 A16(a, neg_b, err_placeholder, inter_s);
+	Add_16 A162(inter_s, 16'd1, err_placeholder, s);
 	
 endmodule
 
@@ -134,43 +146,65 @@ module Multiply_16 (input [15:0] a, b, output [31:0] p);
 	
 endmodule
 
-//Divide a by b. b cannot be 0. 
-module Divide_16 (input [15:0] a, b, output [15:0] q);
+//Divide a by b. b cannot be 0. Error is 1 if b is 0.
+module Divide_16 (input [15:0] a, b, output err, output [15:0] q);
 
+	
 	reg [15:0] q;
+	reg [4:0] i;
+	reg err;
+	reg b_placeholder; //have to store current b bit because we have to invert it
+	
 	always @(a, b, q) begin;
 		q = a / b;
+		err = 1'b1;
+		
+		//Check if b is all 0's - start err at 1 (assume all 0's) then set to 0 if any bit is 1 (i.e. one of them is non-zero)
+		for (i = 0; i < 15; i = i + 1)
+		begin
+			b_placeholder = b[i];
+			b_placeholder = !b_placeholder;
+			err = b_placeholder & err;	//ANDing err with b[i]' will result in err being 0 if it's a 1 and 1 otherwise
+		end
+		
 	end
 
 endmodule
 
-//Returns the factorial of a in 32 bit output. The input must be a positive whole number no greater than 12.
-module Fact_16 (input [15:0] a, output [31:0] o);
+//Returns the factorial of a in 32 bit output. The input must be a positive whole number no greater than 12. Error is set to 1 if it is greater than 12.
+module Fact_16 (input [15:0] a, output err, output [31:0] o);
 
+	reg err;
 	reg [15:0] i;
 	reg [31:0] o;	//Start with the output equal to 1.
 	
 	always @* begin
-			
 		o = 32'd1;
 		for (i = a; i != 1; i = i - 1)
 			o = o * i;	
 		
+		if (a > 12)
+		begin
+			err = 1'b1;
+		end
 	end
 
 endmodule
 
+
 //Returns e raised to the input. Whole numbers only. Output is 32-bit, so the maximum input is 22.
 //Obviously there will be some error since we are using a power series approximation and there are
-// no floating points.
-module Exp_16 (input [15:0] a, output [31:0] o);
+// no floating points. Err is set to 1 if input is greater than 22.
+module Exp_16 (input [15:0] a, output err, output [31:0] o);
 
+	reg err;
 	reg [15:0] i;
 	reg [31:0] o;
 	reg [255:0] out, factorial;
 	
-	always @* begin
+	always @(*) begin
 		
+		err = 1'b0;
 		out = 255'd1;
 		factorial = 255'd1;
 		for (i = 1; i < ((a ** 2)/2); i = i + 1)
@@ -179,87 +213,130 @@ module Exp_16 (input [15:0] a, output [31:0] o);
 			out = out + ((a ** i)/factorial);
 		end
 		assign o = out;
+		
+		if (a > 22) 
+		begin
+			err = 1'b1;
+		end
 	end
 	
 endmodule
 
+module DFF (input clock, input [15:0] in, output[15:0] out);
+	reg [15:0] out;
 
-module Arithmetic(a,b,sel,out_16,out_32);
-
-	input [15:0] a,b;
-	input [2:0] sel;
-	output reg [15:0] out_16;
-	output reg [31:0] out_32;
-
-	always @(*) begin
-		case(sel)
-			3'b000 : Add_16 add(a,b,out_16);
-			3'b001 : Subtract_16 sub(a,b,out_16);
-			3'b010 : Multiply_16 mult(a,b,out_32);
-			3'b011 : Divide_16 div(a,b,out_16);
-			3'b100 : Fact_16 fact(a,out_32);
-			3'b101 : Exp_16 exp(a,out_32);
-		endcase
-	end
-	
-	// Add_16 add(a,b,ADD1);
-	// Subtract_16 sub(a,b,SUB1);
-	// Multiply_16 mult(a,b,MULT1);
-	// Divide_16 div(a,b,DIV1);
-	// Fact_16 fact(a,FACT1);
-	// Exp_16 exp(a,EXP1);
-
-endmodule
-
-module Logic(a,b,sel,out);
-
-	input [15:0] a,b;
-	input [2:0] sel;
-	output reg [15:0] out;
-
-	always @(*) begin
-		//detection of operation code
-		case(sel)
-			//and
-			2'b00 : out = a & b;
-			//or
-			2'b01 : out = a | b;
-			//xor
-			2'b10 : out = a ^ b;
-			//not
-			2'b11 : out = ~a;
-		endcase
+	always @(posedge clock)
+	begin
+		out = in;
 	end
 	
 endmodule
 
-module Shifter(a,b,sel,out);
+//This is a separate module because it has different bus widths
+module Accumulator (input clock, input [31:0] in, output[31:0] out);
+	reg [31:0] out;
 
-	input [15:0] a,b;
-	input [2:0] sel;
-	output reg [15:0] out;
-
-	always @(*) begin
-		//detection of operation code
-		case(sel)
-			//and
-			1'b0 : out = a<<1;
-			//or
-			1'b1 : out = a>>1;
-		endcase
+	always @(posedge clock)
+	begin
+		out = in;
 	end
 	
 endmodule
+
+// module RegState (input clock, input reset, D);
+
 
 //ALU module inputs: 2 8-bit variables, and 3-bit opcode and reset but. output:8-bit result, 1-bit reset/error
-module SixteenBit_ALU(input clk, reset, input [15:0] a, b, input [2:0] sel, output reg [15:0] out_16, output reg [31:0] out_32);
+module SixteenBit_ALU(input clk, reset, input [15:0] a,b, input [31:0] acc, input [5:0] sel, output reg [31:0] out);
 
-	Arithmetic arith(a, b, sel, out_16);
-	Logic log(a, b, sel, out_16);
-	Shifter shift(a, b, sel, out_16, out_32);
+	wire [15:0] SR, SL, SUM, SUB, DIV, AND, OR, NOT, XOR;
+	wire [31:0] MULT, EXP, FACT;
+	wire err;
 	
+	Not_16 n(a, NOT);
+	Or_16 o(a, b, OR);
+	And_16 andy(a, b, AND);
+	Xor_16 xory(a, b, XOR);
+	ShiftLeft sl(a, SL);
+	ShiftRight sr (a, SR);
+	Add_16 add(a,b,err,SUM);
+	Subtract_16 sub(a,b,err,SUB);
+	Multiply_16 mult(a,b,MULT);
+	Divide_16 div(a,b,err,DIV);
+	Fact_16 fact(a, err, FACT);
+	Exp_16 exp(a, err, EXP);
+	
+	/*
+	Not_16 n(acc, NOT);
+	Or_16 o(acc, b, OR);
+	And_16 andy(acc, b, AND);
+	Xor_16 xory(acc, b, XOR);
+	ShiftLeft sl(a, SL);
+	ShiftRight sr (a, SR);
+	Add_16 add(a,b,err,SUM);
+	Subtract_16 sub(a,b,err,SUB);
+	Multiply_16 mult(a,b,MULT);
+	Divide_16 div(a,b,err,DIV);
+	Fact_16 fact(a, err, FACT);
+	Exp_16 exp(a, err, EXP);*/
+	
+	
+	always @(*) begin
+		case(sel)
+			//clear
+			5'd0 : out = 16'b0000000000000000;
+			//not
+			5'd1 : out = NOT;
+			//>>
+			5'd2 : out = SR;
+			//<<
+			5'd3 : out = SL;
+			//!
+			5'd4 : out = FACT;
+			//e^x
+			5'd5 : out = EXP;
+			//+
+			5'd6 : out = SUM;
+			//-
+			5'd7 : out = SUB;
+			//x
+			5'd8 : out = MULT;
+			//divide
+			5'd9 : out = DIV;
+			//and
+			5'd10 : out = AND;
+			//or
+			5'd11 : out = OR;
+			//xor
+			5'd12 : out = XOR;
+			//Accumulator opcodes
+			//not
+			/*5'd13 : out = NOT;
+			//>>
+			5'd14 : out = SR;
+			//<<
+			5'd15 : out = SL;
+			//!
+			5'd16 : out = FACT;
+			//e^x
+			5'd17 : out = EXP;
+			//+
+			5'd18 : out = SUM;
+			//-
+			5'd19 : out = SUB;
+			//x
+			5'd20 : out = MULT;
+			//divide
+			5'd21 : out = DIV;
+			//and
+			5'd22 : out = AND;
+			//or
+			5'd23 : out = OR;
+			//xor
+			5'd24 : out = XOR;*/
+		endcase
+	end
 endmodule
-
 
 /**************************************************************
 			MAIN
@@ -267,17 +344,58 @@ endmodule
 
 module testbench();
 
-	
-	reg [15:0] a, b, c, x, y, f, e;
-	reg r;
-	reg [2:0] s;
-	
-	wire carry, ovf;
-  	wire [15:0] out, prevR;
-  	wire clock, prevReset;
-  	wire reset;
-	reg clk;
+	//Currently this code is for testing. a, b, and s are for arithmetic and the rest are for the logical operations. 
+	reg [15:0] inA, inB;
+	reg [31:0] inAcc;
+	wire [15:0] outA, outB;
+	wire [31:0] outAcc;
 
-	SixteenBit_ALU ALU(clk,r,a,b,s,out);
+	reg [5:0] selector;
 	
+ 	wire [31:0] out;
+	reg clock;
+	reg reset;
+
+	DFF a(clock, inA, outA);
+	DFF b(clock, inB, outB);
+	Accumulator acc(clock, inAcc, outAcc);
+
+	SixteenBit_ALU ALU(clock,reset,outA,outB,outAcc,selector,out);
+	//Set acc to output
+
+	initial begin
+		forever begin
+			#5
+			clock = 1'b0;
+			#5
+			clock = 1'b1;
+		end
+	end		
+	
+	initial begin
+		#2
+		#10
+		inA = 16'b000000000000001;
+		inB = 16'b000000000000001;
+		inAcc = 16'b0000000000000000;
+		reset = 0;
+		selector = 5'd1;
+		
+		#10
+		reset = 1;
+
+		#10
+		reset = 0;
+
+		$finish;
+	end
+
+	initial begin
+		#1 
+    	$display("hello");
+		forever begin
+			#10
+			$display("Output: %16b", out);
+		end
+	end
 endmodule
