@@ -250,8 +250,7 @@ module Mux_2 (input [15:0] in1, in2, input selector, output[15:0] out);
 endmodule
 
 
-//ALU module inputs: 2 8-bit variables, and 3-bit opcode and reset but. output:8-bit result, 1-bit reset/error
-module SixteenBit_ALU(input clk, input [15:0] a,b, acc, input [5:0] sel, output reg [31:0] out, output reset);
+module SixteenBit_ALU(input [15:0] a, b, acc, input [5:0] opcode, output reg [31:0] out, output reset);
 
 	wire [15:0] SR, SL, SUM, SUB, DIV, AND, OR, NOT, XOR;
 	wire [31:0] MULT, EXP, FACT;
@@ -290,7 +289,7 @@ module SixteenBit_ALU(input clk, input [15:0] a,b, acc, input [5:0] sel, output 
 	
 	always @(*) begin
 		reset = 0; out = 31'b0;
-		case(sel)
+		case(opcode)
 			//clear
 			5'd0 : reset = 1; 
 			//not
@@ -355,7 +354,7 @@ module testbench();
 	reg [15:0] inA, inB, inAcc;
 	wire [15:0] outA, outB, outAcc, MuxOutA, MuxOutB, MuxOutAcc;
 
-	reg [5:0] selector;
+	reg [5:0] opcode;
 	
  	wire [31:0] out;
 	reg clock;
@@ -368,7 +367,7 @@ module testbench();
 	DFF b(clock, MuxOutB, outB);
 	DFF acc(clock, MuxOutAcc, outAcc);
 
-	SixteenBit_ALU ALU(clock,outA,outB,outAcc,selector,out,reset);
+	SixteenBit_ALU ALU(outA,outB,outAcc,opcode,out,reset);
 	
 	initial begin
 		forever begin
@@ -382,38 +381,39 @@ module testbench();
 	//Reset is handled by the ALU. No need to have it as a stimulus!
 	//When you set the input for an operation, the input MUST be set the clock cycle BEFORE to give the clocks a chance to set them.
 	initial begin
-		#1
-		#10
-		selector = 5'd0;	//Clear
-		inA = 16'd2;		//Set A to 5 a full cycle before we take its factorial below
+		#2
+		opcode = 5'd0;  //Clear
 		
-		#10
-		selector = 5'd3;	//5 factorial
-		inB = 16'd20;
+		#20
+		inA = 5'd3;
+		inB = 5'd2;
+		opcode = 5'd6;	//A + B
 		
-		#10
-		selector = 5'd19;	//5 factorial - 20
+		#20
+		opcode = 5'd14;	//SR Acc
 		
-		#10
-		selector = 5'd13;	//Negate the result
+		#20
+		opcode = 5'd14;	//Acc!
 		
-		#10
-		selector = 5'd0;	//Clear
-		inA = 16'd2;
-		inB = 16'd20;
+		#20
+		opcode = 5'd13;	//Negate the result
 		
-		#10
-		selector = 5'd12;	//Bitwise XOR 2 and 20
+		#20
+		opcode = 5'd0;	//Clear
 		
-		#10
+		#20
+		opcode = 5'd12;	//Bitwise XOR 3 and 2
+		
+		#20
 		$finish;
 	end
 
 	initial begin
-		#2
+		#1
+		$display("Input A          Input B          Accumulator      Opcode Output                           ");
 		forever begin
-			#10
-			$display("Output: %16b", out);
+			#20
+			$display("%1b %1b %1b %1b %1b", outA, outB, outAcc, opcode, out);
 		end
 	end
 endmodule
