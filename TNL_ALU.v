@@ -532,12 +532,12 @@ module testbench();
 	initial begin	
 		#3
 	
-		$display("Input A          Input B          Accumulator      Opcode Output                           Error ");
+		$display("Input A          Input B          Accumulator      Opcode/State Output                           Error ");
 		forever begin
 			#10
 	
 			//DR. BECKER SAY HI!
-			$display("%1b %1b %1b %1b %1b   %1b",outA, outB, outAcc, opcode, out, error);
+			$display("%1b %1b %1b     %1b    %1b   %1b",outA, outB, outAcc, opcode, out, error);
 		end
 	end
 endmodule
